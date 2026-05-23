@@ -1,0 +1,40 @@
+{% comment %}
+  TryOn — app embed block.
+  Merchant enables this from Theme editor → Apps → "TryOn Widget".
+  Once enabled it injects embed.js on every storefront page; the script
+  decides per-page whether to show the button (product/collection only).
+{% endcomment %}
+
+{%- comment -%}
+  Default to the deployed app URL. A merchant only sets `app_url` when
+  pointing the widget at a local dev tunnel.
+{%- endcomment -%}
+{%- assign tryon_app_url = block.settings.app_url | default: "https://tryonshopify.vercel.app" -%}
+{% if block.settings.enabled %}
+  <script
+    src="{{ tryon_app_url }}/embed.js"
+    data-shop="{{ shop.permanent_domain }}"
+    async></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "TryOn Widget",
+  "target": "head",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "enabled",
+      "label": "Enable TryOn widget",
+      "default": true,
+      "info": "When on, the Try On button appears on product pages."
+    },
+    {
+      "type": "url",
+      "id": "app_url",
+      "label": "App URL (advanced)",
+      "info": "Leave blank — the widget uses the deployed app automatically. Only set this to point at a local dev tunnel."
+    }
+  ]
+}
+{% endschema %}

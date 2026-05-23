@@ -1,0 +1,7 @@
+api_version = "2025-01"
+uid = "17ed4145-8eb5-4bca-2f19-0eded4ddbaa89a05a0f9"
+
+[[extensions]]
+name = "TryOn Widget"
+handle = "tryon-embed"
+type = "theme"

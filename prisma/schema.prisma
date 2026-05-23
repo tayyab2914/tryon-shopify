@@ -1,0 +1,130 @@
+// TryOn Shopify app — Prisma schema.
+// Postgres for production (Vercel + Supabase/Neon). DATABASE_URL is set in
+// .env locally and in the Vercel project for deploys.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Runtime: Supabase transaction pooler (pgbouncer) — serverless-friendly.
+  url       = env("DATABASE_URL")
+  // Migrations: Supabase session pooler — supports DDL / prepared statements.
+  directUrl = env("DIRECT_URL")
+}
+
+// Shopify session storage — required by @shopify/shopify-app-session-storage-prisma.
+// Do not remove fields; the package writes to all of them.
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// Per-merchant configuration and the parent of all try-on / cart / order data.
+model Shop {
+  id            String    @id @default(cuid())
+  shopDomain    String    @unique
+  installedAt   DateTime  @default(now())
+  uninstalledAt DateTime?
+
+  widgetEnabled   Boolean @default(true)
+  buttonLabel     String  @default("Try On with AI")
+  accentColor     String  @default("#1a1a1a")
+  consentText     String  @default("I agree to upload my photo for a one-time virtual try-on. I understand it is processed only to generate my result, is never saved to any database, and is removed the moment I refresh or close this window.")
+  buttonPlacement String  @default("auto")
+
+  // Extended widget appearance / behaviour.
+  buttonStyle      String  @default("outline") // "outline" | "solid"
+  buttonRadius     String  @default("square")  // "square" | "rounded" | "pill"
+  buttonSize       String  @default("medium")  // "small" | "medium" | "large"
+  showOnProduct    Boolean @default(true)
+  showOnCollection Boolean @default(true)
+  modalTitle       String  @default("Virtual Fitting Room")
+  addToCartLabel   String  @default("Add to Bag")
+
+  tryOnLimitEnabled Boolean @default(true)
+  tryOnLimitPerIp   Int     @default(5)
+  tryOnLimitPeriod  String  @default("DAILY")
+
+  plan         String    @default("BETA_FREE")
+  chargeId     String?
+  trialEndsAt  DateTime?
+
+  // Whether the conversion web pixel has been activated for this shop.
+  pixelActivated Boolean @default(false)
+
+  tryOns      TryOn[]
+  cartAdds    CartAdd[]
+  orderEvents OrderEvent[]
+
+  @@index([uninstalledAt])
+}
+
+model TryOn {
+  id            String   @id @default(cuid())
+  shopId        String
+  productId     String?
+  productHandle String?
+  productUrl    String?
+  garment       String?
+  status        String
+  error         String?
+  ipHash        String
+  durationMs    Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  cartAdds CartAdd[]
+
+  @@index([shopId, createdAt])
+  @@index([shopId, status])
+}
+
+model CartAdd {
+  id        String   @id @default(cuid())
+  shopId    String
+  tryOnId   String?
+  productId String
+  variantId String?
+  createdAt DateTime @default(now())
+
+  shop  Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  tryOn TryOn? @relation(fields: [tryOnId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+  @@index([tryOnId])
+}
+
+model OrderEvent {
+  id             String   @id @default(cuid())
+  shopId         String
+  shopifyOrderId String   @unique
+  totalPrice     String
+  currency       String
+  itemCount      Int
+  // True when at least one purchased product matched a recent try-on / cart-add
+  // for this shop — i.e. the order was likely influenced by the try-on widget.
+  attributed     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt])
+}
