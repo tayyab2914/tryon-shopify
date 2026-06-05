@@ -30,8 +30,31 @@ interface TryOnSummary {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = await getShopByDomain(session.shop);
+
+  // The new Shopify admin no longer resolves `themes/current/editor` — it
+  // leaves <theme-id> in the URL as a literal placeholder and the editor
+  // refuses to load. Fetch the active main theme's numeric ID and use it.
+  let themeId: string | null = null;
+  try {
+    const response = await admin.graphql(
+      `#graphql
+      query MainTheme {
+        themes(first: 1, roles: [MAIN]) {
+          nodes { id }
+        }
+      }`,
+    );
+    const payload = (await response.json()) as {
+      data?: { themes?: { nodes?: Array<{ id: string }> } };
+    };
+    const gid = payload?.data?.themes?.nodes?.[0]?.id;
+    if (gid) themeId = gid.split("/").pop() ?? null;
+  } catch {
+    // If the lookup fails, the button falls back to the themes list page so
+    // the merchant can still reach the editor manually.
+  }
 
   let widgetEnabled = false;
   let analytics: Awaited<ReturnType<typeof getAnalytics>> | null = null;
@@ -67,14 +90,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }));
   }
 
-  return { shopDomain: session.shop, widgetEnabled, analytics, recentTryOns, planStatus };
+  return { shopDomain: session.shop, themeId, widgetEnabled, analytics, recentTryOns, planStatus };
 };
 
 export default function Index() {
-  const { shopDomain, widgetEnabled, analytics, recentTryOns, planStatus } =
+  const { shopDomain, themeId, widgetEnabled, analytics, recentTryOns, planStatus } =
     useLoaderData<typeof loader>();
 
-  const themeEditorUrl = `https://${shopDomain}/admin/themes/current/editor?context=apps`;
+  const themeEditorUrl = themeId
+    ? `https://${shopDomain}/admin/themes/${themeId}/editor?context=apps`
+    : `https://${shopDomain}/admin/themes`;
+
+  // Bypass App Bridge for the theme-editor navigation. Polaris Banner action /
+  // Button props (`url` + `external` / `target="_blank"`) get intercepted by
+  // App Bridge inside the embedded admin, which throws and unmounts the React
+  // tree when its host/redirect state isn't ready (race on App Bridge init).
+  // window.open with _blank gives a plain new tab; Shopify rewrites the
+  // myshopify.com/admin URL to admin.shopify.com on landing.
+  const openThemeEditor = () => {
+    if (typeof window !== "undefined") {
+      window.open(themeEditorUrl, "_blank", "noopener,noreferrer");
+    }
+  };
 
   return (
     <Page>
@@ -119,8 +156,7 @@ export default function Index() {
           tone="info"
           action={{
             content: "Open theme editor",
-            url: themeEditorUrl,
-            external: true,
+            onAction: openThemeEditor,
           }}
         >
           <p>
@@ -221,7 +257,7 @@ export default function Index() {
                 <Text as="h2" variant="headingMd">Quick actions</Text>
                 <Button url="/app/customization">Customize the widget</Button>
                 <Button url="/app/analytics">View analytics</Button>
-                <Button url={themeEditorUrl} target="_blank" variant="plain">
+                <Button onClick={openThemeEditor} variant="plain">
                   Open theme editor
                 </Button>
               </BlockStack>

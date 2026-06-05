@@ -1,9 +1,9 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "b7677929f573feaedf28eb320e9ee8da"
+client_id = "e6402da7eae1987ee00e07972b341c04"
 name = "TryOn"
-handle = "tryon-solyio"
-application_url = "https://tryonshopify.vercel.app"
+handle = "solyio-tryon"
+application_url = "https://tryon.solyio.com"
 embedded = true
 
 [build]
@@ -14,17 +14,17 @@ automatically_update_urls_on_dev = true
 # read_products: forward use. read_orders: powers order-conversion analytics via
 # the orders/create webhook. read_orders is protected customer data — request
 # access in Partner Dashboard → API access → Protected customer data.
-scopes = "read_products,read_orders"
+scopes = "read_products,read_orders,read_themes"
 
 [auth]
 redirect_urls = [
-  "https://tryonshopify.vercel.app/auth/callback",
-  "https://tryonshopify.vercel.app/auth/shopify/callback",
-  "https://tryonshopify.vercel.app/api/auth/callback"
+  "https://tryon.solyio.com/auth/callback",
+  "https://tryon.solyio.com/auth/shopify/callback",
+  "https://tryon.solyio.com/api/auth/callback"
 ]
 
 [webhooks]
-api_version = "2026-07"
+api_version = "2025-01"
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
@@ -43,9 +43,12 @@ api_version = "2026-07"
   # Order-conversion analytics. Requires read_orders (protected customer data —
   # request access in the Partner Dashboard). The handler attributes orders to
   # recent try-ons by product id; it uses no customer PII fields.
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/orders/create"
-  topics = [ "orders/create" ]
+  # TEMPORARILY DISABLED while migrating to the new app in org 219199970 — PCD
+  # not yet approved on the new app. Re-enable + redeploy after the listing UI
+  # grants Protected Customer Data access.
+  # [[webhooks.subscriptions]]
+  # uri = "/webhooks/orders/create"
+  # topics = [ "orders/create" ]
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/customers/data_request"

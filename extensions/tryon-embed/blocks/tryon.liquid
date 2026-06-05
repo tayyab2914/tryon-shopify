@@ -9,7 +9,7 @@
   Default to the deployed app URL. A merchant only sets `app_url` when
   pointing the widget at a local dev tunnel.
 {%- endcomment -%}
-{%- assign tryon_app_url = block.settings.app_url | default: "https://tryonshopify.vercel.app" -%}
+{%- assign tryon_app_url = block.settings.app_url | default: "https://tryon.solyio.com" -%}
 {% if block.settings.enabled %}
   <script
     src="{{ tryon_app_url }}/embed.js"

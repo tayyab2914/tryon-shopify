@@ -17,10 +17,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const STATS: [string, string][] = [
-  ["30%", "fewer returns"],
-  ["25%", "conversion lift"],
   ["~15s", "per try-on"],
   ["1-click", "install"],
+  ["0", "photos stored"],
+  ["AI", "photoreal render"],
 ];
 
 const STEPS: [string, string, string][] = [
