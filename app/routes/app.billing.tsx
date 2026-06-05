@@ -1,7 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { Form, useFetcher, useLoaderData } from "@remix-run/react";
-import { useEffect } from "react";
+import { Form, useLoaderData } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -32,9 +30,7 @@ import {
   BILLABLE_PLAN_IDS,
   PLANS,
   PLAN_ORDER,
-  isBillablePlanId,
   normalizePlan,
-  planKeyFromName,
 } from "../lib/plans";
 import { SUPPORT_EMAIL } from "../lib/links";
 
@@ -83,124 +79,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, admin, billing } = await authenticate.admin(request);
-  const form = await request.formData();
-  const intent = String(form.get("intent") ?? "");
+  const { session, redirect } = await authenticate.admin(request);
 
-  if (intent === "subscribe") {
-    const plan = String(form.get("plan") ?? "");
-    if (!isBillablePlanId(plan)) {
-      return json({ error: "Unknown plan." }, { status: 400 });
-    }
-    const def = PLANS[planKeyFromName(plan)!];
-
-    // Build an ABSOLUTE return URL. The old code used
-    // `${process.env.SHOPIFY_APP_URL ?? ""}/app/billing`, which silently becomes
-    // a RELATIVE url when the env var is unset — Shopify then rejects the charge.
-    // Fall back to the request origin so the URL is always valid.
-    const origin = (process.env.SHOPIFY_APP_URL || new URL(request.url).origin)
-      .replace(/\/+$/, "");
-    const returnUrl = `${origin}/app/billing`;
-
-    // Create the recurring charge directly so we get the confirmationUrl back as
-    // DATA (rather than the library throwing a cross-origin redirect that the
-    // embedded iframe's fetch can't follow — the cause of the "app error" on
-    // upgrade). The client then redirects the top frame to this URL.
-    try {
-      const response = await admin.graphql(
-        `#graphql
-        mutation CreateAppSubscription(
-          $name: String!
-          $returnUrl: URL!
-          $test: Boolean!
-          $lineItems: [AppSubscriptionLineItemInput!]!
-        ) {
-          appSubscriptionCreate(
-            name: $name
-            returnUrl: $returnUrl
-            test: $test
-            lineItems: $lineItems
-          ) {
-            userErrors { field message }
-            confirmationUrl
-            appSubscription { id }
-          }
-        }`,
-        {
-          variables: {
-            name: plan,
-            returnUrl,
-            test: BILLING_TEST,
-            lineItems: [
-              {
-                plan: {
-                  appRecurringPricingDetails: {
-                    price: { amount: def.amount, currencyCode: "USD" },
-                    interval: "EVERY_30_DAYS",
-                  },
-                },
-              },
-            ],
-          },
-        },
-      );
-
-      const body = (await response.json()) as {
-        data?: {
-          appSubscriptionCreate?: {
-            userErrors?: Array<{ field?: string[] | null; message: string }>;
-            confirmationUrl?: string | null;
-          };
-        };
-      };
-      const result = body.data?.appSubscriptionCreate;
-
-      if (result?.userErrors?.length) {
-        console.error("appSubscriptionCreate userErrors", result.userErrors);
-        return json(
-          { error: result.userErrors[0].message || "Couldn't start the subscription." },
-          { status: 422 },
-        );
-      }
-      if (!result?.confirmationUrl) {
-        return json(
-          { error: "Shopify didn't return an approval URL. Please try again." },
-          { status: 502 },
-        );
-      }
-
-      return json({ confirmationUrl: result.confirmationUrl });
-    } catch (err) {
-      console.error("appSubscriptionCreate failed", err);
-      return json(
-        { error: "Couldn't reach Shopify billing. Please try again." },
-        { status: 500 },
-      );
-    }
-  }
-
-  if (intent === "cancel") {
-    try {
-      const check = await billing.check({
-        plans: [...BILLABLE_PLAN_IDS],
-        isTest: BILLING_TEST,
-      });
-      const sub = check.appSubscriptions[0];
-      if (sub) {
-        await billing.cancel({
-          subscriptionId: sub.id,
-          isTest: BILLING_TEST,
-          prorate: true,
-        });
-      }
-    } catch (err) {
-      console.error("billing.cancel failed", err);
-    }
-    await syncShopPlan(session.shop, null);
-    return redirect("/app/billing");
-  }
-
-  return redirect("/app/billing");
+  // This app uses Shopify Managed Pricing, so the Billing API cannot create
+  // charges (it returns "Managed Pricing Apps cannot use the Billing API").
+  // Every plan change — subscribe, upgrade, downgrade, and cancel — happens on
+  // Shopify's hosted plan-selection page. Redirect there, breaking out of the
+  // embedded iframe with target "_top" (the documented Managed Pricing flow).
+  // Shopify hosts the accept/decline screen and, on reinstall, re-requests
+  // approval automatically; the loader's billing.check reconciles the result.
+  const storeHandle = session.shop.replace(/\.myshopify\.com$/, "");
+  const appHandle = process.env.SHOPIFY_APP_HANDLE || "solyio-tryon";
+  return redirect(
+    `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`,
+    { target: "_top" },
+  );
 };
 
 function priceLabel(amount: number, key: string): string {
@@ -318,9 +211,9 @@ export default function Billing() {
                   {PLANS[status.plan].billable && status.active && (
                     <InlineStack align="start">
                       <Form method="post">
-                        <input type="hidden" name="intent" value="cancel" />
-                        <Button submit tone="critical" variant="plain">
-                          Cancel subscription
+                        <input type="hidden" name="intent" value="manage" />
+                        <Button submit variant="plain">
+                          Manage or cancel plan on Shopify
                         </Button>
                       </Form>
                     </InlineStack>
@@ -395,39 +288,17 @@ function SubscribeButton({
   label: string;
   variant?: "primary" | "secondary";
 }) {
-  const fetcher = useFetcher<typeof action>();
-  const data = fetcher.data;
-  const confirmationUrl =
-    data && "confirmationUrl" in data ? data.confirmationUrl : null;
-  const error = data && "error" in data ? data.error : null;
-
-  // Once the action returns an approval URL, break out of the embedded iframe to
-  // Shopify's charge-approval screen. `_top` targets the topmost frame, which is
-  // allowed cross-origin and is the sanctioned redirect App Bridge intercepts.
-  useEffect(() => {
-    if (confirmationUrl) {
-      window.open(confirmationUrl, "_top");
-    }
-  }, [confirmationUrl]);
-
-  // Keep the button busy through both the request and the subsequent redirect.
-  const loading = fetcher.state !== "idle" || Boolean(confirmationUrl);
-
+  // Posts to the action, which redirects (target "_top") to Shopify's hosted
+  // Managed Pricing plan page. The plan is informational — Shopify shows all
+  // plans on that page and the merchant chooses there.
   return (
-    <BlockStack gap="100">
-      <fetcher.Form method="post">
-        <input type="hidden" name="intent" value="subscribe" />
-        <input type="hidden" name="plan" value={plan} />
-        <Button submit variant={variant} loading={loading}>
-          {label}
-        </Button>
-      </fetcher.Form>
-      {error && (
-        <Text as="span" variant="bodySm" tone="critical">
-          {error}
-        </Text>
-      )}
-    </BlockStack>
+    <Form method="post">
+      <input type="hidden" name="intent" value="subscribe" />
+      <input type="hidden" name="plan" value={plan} />
+      <Button submit variant={variant}>
+        {label}
+      </Button>
+    </Form>
   );
 }
 
