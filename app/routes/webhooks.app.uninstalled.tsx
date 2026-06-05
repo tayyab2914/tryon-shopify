@@ -16,9 +16,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.session.deleteMany({ where: { shop } });
   }
 
+  // Clear chargeId so a reinstall starts with no active charge and is forced to
+  // request approval again (App Store requirement 1.2.2). The plan tier is kept
+  // so the merchant sees "Subscribe to <their plan>" instead of starting over;
+  // without a chargeId that plan grants 0 quota (a paywall) until re-approved.
   await db.shop.updateMany({
     where: { shopDomain: shop },
-    data: { uninstalledAt: new Date(), widgetEnabled: false },
+    data: { uninstalledAt: new Date(), widgetEnabled: false, chargeId: null },
   });
 
   return new Response();
