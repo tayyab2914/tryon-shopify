@@ -145,7 +145,13 @@ export default function Settings() {
                       used solely for rate-limiting.
                     </p>
                   </Banner>
-                  <Button url="/privacy" target="_blank" variant="plain">
+                  <Button
+                    onClick={() => {
+                      if (typeof window !== "undefined")
+                        window.open("/privacy", "_blank", "noopener,noreferrer");
+                    }}
+                    variant="plain"
+                  >
                     Read the full privacy policy
                   </Button>
                 </BlockStack>
@@ -157,7 +163,12 @@ export default function Settings() {
                   <Text as="p" variant="bodyMd" tone="subdued">
                     Reach out and we&rsquo;ll get back to you.
                   </Text>
-                  <Button url={`mailto:${SUPPORT_EMAIL}`} external>
+                  <Button
+                    onClick={() => {
+                      if (typeof window !== "undefined")
+                        window.location.href = `mailto:${SUPPORT_EMAIL}`;
+                    }}
+                  >
                     Email support
                   </Button>
                 </BlockStack>

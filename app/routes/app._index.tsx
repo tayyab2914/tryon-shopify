@@ -271,10 +271,21 @@ export default function Index() {
                 <Text as="p" variant="bodyMd" tone="subdued">
                   Questions or issues? We&rsquo;re happy to help.
                 </Text>
-                <Button url={`mailto:${SUPPORT_EMAIL}`} external>
+                <Button
+                  onClick={() => {
+                    if (typeof window !== "undefined")
+                      window.location.href = `mailto:${SUPPORT_EMAIL}`;
+                  }}
+                >
                   Email support
                 </Button>
-                <Button url="/privacy" target="_blank" variant="plain">
+                <Button
+                  onClick={() => {
+                    if (typeof window !== "undefined")
+                      window.open("/privacy", "_blank", "noopener,noreferrer");
+                  }}
+                  variant="plain"
+                >
                   Privacy policy
                 </Button>
               </BlockStack>

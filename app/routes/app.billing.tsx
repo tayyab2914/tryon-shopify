@@ -326,10 +326,16 @@ function PlanCta({
   }
 
   if (planKey === "CUSTOM") {
+    // Use onClick, NOT a Polaris Button `url`/`external`: in the embedded admin,
+    // App Bridge intercepts link navigation and renders "This content is blocked"
+    // inside the iframe. Setting location.href to a mailto: opens the mail client
+    // without navigating the frame.
+    const mailto = `mailto:${supportEmail}?subject=${encodeURIComponent("TryOn Custom plan enquiry")}`;
     return (
       <Button
-        url={`mailto:${supportEmail}?subject=${encodeURIComponent("TryOn Custom plan enquiry")}`}
-        external
+        onClick={() => {
+          if (typeof window !== "undefined") window.location.href = mailto;
+        }}
       >
         Contact us
       </Button>
