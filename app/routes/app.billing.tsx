@@ -32,7 +32,6 @@ import {
   PLAN_ORDER,
   normalizePlan,
 } from "../lib/plans";
-import { SUPPORT_EMAIL } from "../lib/links";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
@@ -41,7 +40,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const base = {
     billingTest: BILLING_TEST,
     freePlanOpen: FREE_PLAN_OPEN,
-    supportEmail: SUPPORT_EMAIL,
   };
 
   if (!shop) {
@@ -109,7 +107,7 @@ function quotaLabel(key: string): string {
 }
 
 export default function Billing() {
-  const { status, checkFailed, billingTest, freePlanOpen, supportEmail } =
+  const { status, checkFailed, billingTest, freePlanOpen } =
     useLoaderData<typeof loader>();
 
   const currentKey = status?.plan ?? "FREE";
@@ -230,7 +228,10 @@ export default function Billing() {
               Plans
             </Text>
             <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
-              {PLAN_ORDER.map((key) => {
+              {/* Custom is excluded: the App Store requires every plan to be
+                  self-serve through Shopify Billing (req 1.2.3). A "Contact us"
+                  plan that needs support to activate is not allowed. */}
+              {PLAN_ORDER.filter((key) => key !== "CUSTOM").map((key) => {
                 const plan = PLANS[key];
                 const isCurrent = key === currentKey;
                 return (
@@ -258,7 +259,6 @@ export default function Billing() {
                           isCurrent={isCurrent}
                           currentAmount={currentAmount}
                           freePlanOpen={freePlanOpen}
-                          supportEmail={supportEmail}
                         />
                       </Box>
                     </BlockStack>
@@ -269,8 +269,7 @@ export default function Billing() {
             <Text as="p" variant="bodySm" tone="subdued">
               Paid plans are billed monthly through Shopify and appear on your
               regular Shopify invoice. Quotas count completed try-ons and reset
-              on the 1st of each month (UTC). Need more than Platinum? Choose
-              Custom to get in touch.
+              on the 1st of each month (UTC).
             </Text>
           </BlockStack>
         </Card>
@@ -307,13 +306,11 @@ function PlanCta({
   isCurrent,
   currentAmount,
   freePlanOpen,
-  supportEmail,
 }: {
   planKey: keyof typeof PLANS;
   isCurrent: boolean;
   currentAmount: number;
   freePlanOpen: boolean;
-  supportEmail: string;
 }) {
   const plan = PLANS[planKey];
 
@@ -322,23 +319,6 @@ function PlanCta({
       <Text as="span" variant="bodySm" tone="subdued">
         Your current plan
       </Text>
-    );
-  }
-
-  if (planKey === "CUSTOM") {
-    // Use onClick, NOT a Polaris Button `url`/`external`: in the embedded admin,
-    // App Bridge intercepts link navigation and renders "This content is blocked"
-    // inside the iframe. Setting location.href to a mailto: opens the mail client
-    // without navigating the frame.
-    const mailto = `mailto:${supportEmail}?subject=${encodeURIComponent("TryOn Custom plan enquiry")}`;
-    return (
-      <Button
-        onClick={() => {
-          if (typeof window !== "undefined") window.location.href = mailto;
-        }}
-      >
-        Contact us
-      </Button>
     );
   }
 
