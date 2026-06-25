@@ -332,7 +332,9 @@ function PlanCta({
     );
   }
 
-  // Billable, self-serve plan that isn't current.
-  const label = currentAmount < plan.amount ? `Upgrade to ${plan.name}` : `Switch to ${plan.name}`;
+  // Billable, self-serve plan that isn't current. Label downgrades explicitly
+  // ("Downgrade to X") so the self-serve downgrade path is unambiguous to a
+  // reviewer (App Store req 1.2.3 requires upgrade AND downgrade).
+  const label = currentAmount < plan.amount ? `Upgrade to ${plan.name}` : `Downgrade to ${plan.name}`;
   return <SubscribeButton plan={plan.name} label={label} variant="primary" />;
 }
