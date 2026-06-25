@@ -16,13 +16,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.session.deleteMany({ where: { shop } });
   }
 
-  // Clear chargeId so a reinstall starts with no active charge and is forced to
-  // request approval again (App Store requirement 1.2.2). The plan tier is kept
-  // so the merchant sees "Subscribe to <their plan>" instead of starting over;
-  // without a chargeId that plan grants 0 quota (a paywall) until re-approved.
+  // Mark uninstalled and clear chargeId. We deliberately do NOT touch
+  // widgetEnabled: the storefront endpoints (api.tryon, api.cart-add) already
+  // gate on uninstalledAt, and uninstalling removes the theme app embed, so
+  // serving stops regardless. Clearing widgetEnabled here used to leave the
+  // widget OFF after a reinstall (reinstall clears uninstalledAt but never
+  // restored it) — preserving it keeps the merchant's choice across reinstalls.
+  // chargeId is cleared so a reinstall must request billing approval again
+  // (App Store requirement 1.2.2).
   await db.shop.updateMany({
     where: { shopDomain: shop },
-    data: { uninstalledAt: new Date(), widgetEnabled: false, chargeId: null },
+    data: { uninstalledAt: new Date(), chargeId: null },
   });
 
   return new Response();
