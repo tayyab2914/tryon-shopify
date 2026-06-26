@@ -54,15 +54,37 @@ export async function getWidgetConfig(shopDomain: string) {
 }
 
 /**
- * Upsert a Shop row at install time. Idempotent — re-running an install just
- * clears `uninstalledAt` and never touches the plan, so an existing merchant's
- * plan (and any grandfathered Free status) is preserved. New shops get the
- * current entry plan (Free while early-access is open, otherwise Basic).
+ * Ensure a Shop row exists for an authenticated merchant. Runs on every admin
+ * request (cheap: a single indexed read when the shop is already active).
+ *
+ * - New shop: create with the current entry plan (Free while early-access is
+ *   open, otherwise Basic).
+ * - Reinstall (row exists but was uninstalled): clear `uninstalledAt` AND
+ *   re-enable the widget, so a reinstalled merchant/reviewer sees the storefront
+ *   widget again without having to re-toggle it in Settings. The plan is never
+ *   touched, so a grandfathered Free status is preserved. (Required for App
+ *   Store review: the reviewer reinstalls to test billing, and the widget must
+ *   still appear afterward — req 2.1.1.)
+ * - Already active: nothing changes — a merchant who turned the widget off
+ *   stays off.
  */
 export async function upsertShop(shopDomain: string) {
-  return db.shop.upsert({
+  const existing = await db.shop.findUnique({
     where: { shopDomain },
-    update: { uninstalledAt: null },
-    create: { shopDomain, plan: defaultPlanForNewShop() },
+    select: { uninstalledAt: true },
   });
+
+  if (!existing) {
+    await db.shop.create({
+      data: { shopDomain, plan: defaultPlanForNewShop() },
+    });
+    return;
+  }
+
+  if (existing.uninstalledAt) {
+    await db.shop.update({
+      where: { shopDomain },
+      data: { uninstalledAt: null, widgetEnabled: true },
+    });
+  }
 }
