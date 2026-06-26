@@ -103,10 +103,14 @@ export default function Settings() {
                   checked={limitEnabled}
                   onChange={setLimitEnabled}
                 />
+                {/* Hidden inputs carry the values: a disabled TextField/Select
+                    is NOT submitted, so without these, saving while the limit is
+                    toggled off would reset per-visitor count + window to defaults. */}
+                <input type="hidden" name="tryOnLimitPerIp" value={limitPerIp} />
+                <input type="hidden" name="tryOnLimitPeriod" value={limitPeriod} />
                 <InlineStack gap="300">
                   <TextField
                     label="Try-ons per visitor"
-                    name="tryOnLimitPerIp"
                     type="number"
                     min={1}
                     max={100}
@@ -117,7 +121,6 @@ export default function Settings() {
                   />
                   <Select
                     label="Window"
-                    name="tryOnLimitPeriod"
                     options={PERIODS}
                     value={limitPeriod}
                     onChange={setLimitPeriod}

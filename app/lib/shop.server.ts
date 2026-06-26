@@ -76,7 +76,15 @@ export async function upsertShop(shopDomain: string) {
 
   if (!existing) {
     await db.shop.create({
-      data: { shopDomain, plan: defaultPlanForNewShop() },
+      // Per-visitor rate limiting is opt-in (off by default) so a new merchant —
+      // or an App Store reviewer testing the headline feature repeatedly from one
+      // IP — isn't throttled out of the box. The monthly plan quota still caps
+      // total usage, and merchants can enable the per-visitor cap in Settings.
+      data: {
+        shopDomain,
+        plan: defaultPlanForNewShop(),
+        tryOnLimitEnabled: false,
+      },
     });
     return;
   }

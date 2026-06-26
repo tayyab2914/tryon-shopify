@@ -360,8 +360,26 @@
 
     // 'auto' (or ATC not found) — append to the best container we can detect.
     const target = findInjectionPoint();
-    if (!target) return;
-    target.appendChild(btn);
+    if (target) {
+      target.appendChild(btn);
+      return;
+    }
+
+    // Last-resort fallback: no known container matched this theme. On a REAL
+    // product page (not an og:image fallback page), pin the button as a floating
+    // control so the widget ALWAYS appears — App Store req 2.1.1 (the widget must
+    // be visible on the storefront regardless of the theme).
+    if (product.mode === 'og') return;
+    btn.style.position = 'fixed';
+    btn.style.left = '50%';
+    btn.style.bottom = '16px';
+    btn.style.transform = 'translateX(-50%)';
+    btn.style.width = 'auto';
+    btn.style.maxWidth = '92vw';
+    btn.style.margin = '0';
+    btn.style.zIndex = '999998';
+    btn.style.boxShadow = '0 2px 12px rgba(0,0,0,0.2)';
+    document.body.appendChild(btn);
   }
 
   function injectCardButton(product) {
@@ -641,7 +659,11 @@
   // a /cart redirect if nothing handles the event.
   async function addToShopifyCart(product, variantId) {
     if (!variantId) {
-      window.location.href = '/cart';
+      // No variant resolved — send the shopper to the product page to pick one
+      // rather than to an empty /cart (which would add nothing).
+      window.location.href = product.productHandle
+        ? `/products/${encodeURIComponent(product.productHandle)}`
+        : '/cart';
       return;
     }
     try {

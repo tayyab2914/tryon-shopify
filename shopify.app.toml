@@ -11,10 +11,14 @@ automatically_update_urls_on_dev = true
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# read_products: forward use. read_orders: powers order-conversion analytics via
-# the orders/create webhook. read_orders is protected customer data — request
-# access in Partner Dashboard → API access → Protected customer data.
-scopes = "read_products,read_orders,read_themes"
+# Only read_themes is actually used (the dashboard resolves the active main-theme
+# id for the theme-editor deep link — app/routes/app._index.tsx). read_orders is
+# Protected Customer Data and read_products is currently unused, so both are
+# dropped to pass App Store scope-minimization / PCD review. Re-add read_orders
+# AND uncomment the orders/create webhook below ONLY after Shopify approves
+# Protected Customer Data access; re-add read_products when a Products API call
+# is actually added. Keep the SCOPES env var in sync with this value.
+scopes = "read_themes"
 
 [auth]
 redirect_urls = [
