@@ -79,9 +79,17 @@ export default function Settings() {
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Widget</Text>
+                {/* Submit the boolean explicitly from React state rather than
+                    relying on the native "checked checkbox sends on" rule — the
+                    Polaris Checkbox's own input wasn't reliably serialized, so a
+                    checked box could save as off. The hidden input always wins. */}
+                <input
+                  type="hidden"
+                  name="widgetEnabled"
+                  value={widgetEnabled ? "on" : "off"}
+                />
                 <Checkbox
                   label="Enable the TryOn widget on my storefront"
-                  name="widgetEnabled"
                   checked={widgetEnabled}
                   onChange={setWidgetEnabled}
                   helpText="When off, the script still loads but no buttons appear and the try-on API is blocked."
@@ -97,9 +105,13 @@ export default function Settings() {
                 <Text as="p" variant="bodyMd" tone="subdued">
                   Caps how many try-ons one shopper can run, identified by IP.
                 </Text>
+                <input
+                  type="hidden"
+                  name="tryOnLimitEnabled"
+                  value={limitEnabled ? "on" : "off"}
+                />
                 <Checkbox
                   label="Enable per-visitor rate limit"
-                  name="tryOnLimitEnabled"
                   checked={limitEnabled}
                   onChange={setLimitEnabled}
                 />
