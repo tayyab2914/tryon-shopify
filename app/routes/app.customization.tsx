@@ -132,11 +132,16 @@ export default function Customization() {
     <Page>
       <TitleBar title="Customize the widget" />
       <Form method="post">
-        {/* Hidden inputs mirror the Polaris Selects/Checkboxes so they submit. */}
+        {/* Hidden inputs mirror the Polaris Selects/Checkboxes so they submit.
+            The Polaris Checkbox's own input isn't reliably serialized, so without
+            these the show-on toggles would save as off on every Save — hiding the
+            Try-On button on the storefront. */}
         <input type="hidden" name="buttonPlacement" value={buttonPlacement} />
         <input type="hidden" name="buttonStyle" value={buttonStyle} />
         <input type="hidden" name="buttonRadius" value={buttonRadius} />
         <input type="hidden" name="buttonSize" value={buttonSize} />
+        <input type="hidden" name="showOnProduct" value={showOnProduct ? "on" : "off"} />
+        <input type="hidden" name="showOnCollection" value={showOnCollection ? "on" : "off"} />
 
         <Layout>
           <Layout.Section>
@@ -202,14 +207,12 @@ export default function Customization() {
                   <Text as="h2" variant="headingMd">Where it shows</Text>
                   <Checkbox
                     label="Show on product pages"
-                    name="showOnProduct"
                     checked={showOnProduct}
                     onChange={setShowOnProduct}
                     helpText="The main Try-On button near Add to Cart."
                   />
                   <Checkbox
                     label="Show on collection / listing pages"
-                    name="showOnCollection"
                     checked={showOnCollection}
                     onChange={setShowOnCollection}
                     helpText="A small Try-On badge on each product card."
