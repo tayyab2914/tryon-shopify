@@ -602,9 +602,13 @@
       button.disabled = true;
       const variantId = product.getVariantId ? product.getVariantId() : null;
       const added = await addToShopifyCart(product, variantId);
-      // Log before any fallback navigation; keepalive keeps the beacon alive.
+      // Log before navigating; keepalive keeps the beacon alive across the redirect.
       if (added) logCartAdd(product, variantId);
       close();
+      // Reliably surface the added item: go to the cart. Custom "cart:refresh"
+      // events don't refresh most themes' drawers, so without this the shopper
+      // only sees the item after a manual reload.
+      if (added) window.location.href = '/cart';
     };
   }
 
@@ -655,16 +659,10 @@
   }
 
   // ---------- 7. CART ----------
-  // Adds the item to the Shopify cart and opens the theme's NATIVE cart popup
-  // (drawer / notification) — the same one that appears on a normal add-to-cart.
-  // Returns true on success.
-  //
-  // Dawn-family / Online Store 2.0 themes expose a <cart-drawer> or
-  // <cart-notification> custom element with getSectionsToRender()/renderContents()
-  // — the exact API the theme's own product form uses. We request those sections
-  // in the add call and hand the response to the element, which re-renders the
-  // cart and opens the popup. Themes without those elements fall back to /cart so
-  // the added item is never invisible.
+  // Adds the item to the Shopify cart via the AJAX API. Returns true on success
+  // so the caller can log the conversion and navigate to /cart. We deliberately
+  // do NOT rely on custom "cart:refresh" events — most themes (incl. Dawn) don't
+  // listen for them, which left the item invisible until a manual reload.
   async function addToShopifyCart(product, variantId) {
     if (!variantId) {
       // No variant resolved — send the shopper to the product page to pick one
@@ -674,44 +672,16 @@
         : '/cart';
       return false;
     }
-
-    const cartEl =
-      document.querySelector('cart-drawer') ||
-      document.querySelector('cart-notification');
-    const canRender = cartEl && typeof cartEl.renderContents === 'function';
-
     try {
-      const body = { id: Number(variantId), quantity: 1 };
-      // Ask Shopify to return the re-rendered cart sections this theme needs.
-      if (canRender && typeof cartEl.getSectionsToRender === 'function') {
-        try {
-          body.sections = cartEl.getSectionsToRender().map((s) => s.id);
-          body.sections_url = window.location.pathname;
-        } catch (e) { /* fall through without sections */ }
-      }
-
+      const fd = new FormData();
+      fd.append('id', String(variantId));
+      fd.append('quantity', '1');
       const res = await fetch('/cart/add.js', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(body),
+        body: fd,
+        headers: { 'Accept': 'application/json' },
       });
       if (!res.ok) throw new Error(`cart/add ${res.status}`);
-      const data = await res.json();
-
-      if (canRender) {
-        // Renders the updated cart into the theme's element and opens the popup.
-        cartEl.renderContents(data);
-        if (typeof cartEl.open === 'function') {
-          try { cartEl.open(); } catch (e) { /* renderContents already opened it */ }
-        }
-        return true;
-      }
-
-      // Theme has no native popup element — best-effort events, then fall back to
-      // the cart page so the shopper always sees the item.
-      document.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true }));
-      document.dispatchEvent(new CustomEvent('cart:updated', { bubbles: true }));
-      window.location.href = '/cart';
       return true;
     } catch (err) {
       console.error('[TryOn] cart/add failed:', err);
