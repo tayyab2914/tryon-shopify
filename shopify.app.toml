@@ -11,14 +11,15 @@ automatically_update_urls_on_dev = true
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# Only read_themes is actually used (the dashboard resolves the active main-theme
-# id for the theme-editor deep link — app/routes/app._index.tsx). read_orders is
-# Protected Customer Data and read_products is currently unused, so both are
-# dropped to pass App Store scope-minimization / PCD review. Re-add read_orders
-# AND uncomment the orders/create webhook below ONLY after Shopify approves
-# Protected Customer Data access; re-add read_products when a Products API call
-# is actually added. Keep the SCOPES env var in sync with this value.
-scopes = "read_themes"
+# read_themes: dashboard resolves the active main-theme id for the theme-editor
+#   deep link (app/routes/app._index.tsx).
+# read_orders: powers order-conversion tracking via the orders/create webhook
+#   below. This is Protected Customer Data — the webhook will NOT deliver until
+#   Shopify grants PCD (Orders) access in Partner Dashboard → API access, and
+#   adding it re-prompts existing merchants to re-consent on next load.
+# read_products is intentionally omitted (no Products API call yet).
+# Keep the SCOPES env var (.env + Vercel) in sync with this value.
+scopes = "read_themes,read_orders"
 
 [auth]
 redirect_urls = [
@@ -44,15 +45,13 @@ api_version = "2025-01"
   uri = "/webhooks/app_subscriptions/update"
   topics = [ "app_subscriptions/update" ]
 
-  # Order-conversion analytics. Requires read_orders (protected customer data —
-  # request access in the Partner Dashboard). The handler attributes orders to
-  # recent try-ons by product id; it uses no customer PII fields.
-  # TEMPORARILY DISABLED while migrating to the new app in org 219199970 — PCD
-  # not yet approved on the new app. Re-enable + redeploy after the listing UI
-  # grants Protected Customer Data access.
-  # [[webhooks.subscriptions]]
-  # uri = "/webhooks/orders/create"
-  # topics = [ "orders/create" ]
+  # Order-conversion analytics. Requires read_orders (Protected Customer Data —
+  # request access in Partner Dashboard → API access). The handler attributes
+  # orders to recent try-ons by product id; it reads no customer PII fields.
+  # Will only deliver once PCD (Orders) access is approved for this app.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/create"
+  topics = [ "orders/create" ]
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/customers/data_request"
