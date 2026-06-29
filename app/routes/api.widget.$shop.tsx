@@ -2,9 +2,11 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { corsJson, corsPreflight } from "../lib/cors.server";
 import { getWidgetConfig, normaliseShopDomain } from "../lib/shop.server";
 
-// 60s CDN cache + 5min SWR — config rarely changes, the try-on endpoint
-// enforces real gates so stale cosmetics are safe.
-const CACHE_CONTROL = "public, max-age=60, stale-while-revalidate=300";
+// 10s CDN cache + 30s SWR — short enough that toggling the widget on/off in
+// Settings reflects on the storefront within ~10-40s, while still absorbing
+// repeat page views. The try-on endpoint enforces real gates, so stale
+// cosmetics in that window are safe.
+const CACHE_CONTROL = "public, max-age=10, stale-while-revalidate=30";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") {
