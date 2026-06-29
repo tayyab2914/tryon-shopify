@@ -1,7 +1,18 @@
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import db from "../db.server";
 import { corsJson, corsPreflight } from "../lib/cors.server";
 import { getShopByDomain, normaliseShopDomain } from "../lib/shop.server";
+
+/**
+ * Remix routes non-mutation methods (incl. OPTIONS) to the loader, so the CORS
+ * preflight must be answered here — not only in the action — or the browser
+ * blocks the cross-origin cart-add POST and conversions go unrecorded.
+ */
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const origin = request.headers.get("origin");
+  if (request.method === "OPTIONS") return corsPreflight(origin);
+  return corsJson({ success: false, error: "Method not allowed" }, 405, origin);
+};
 
 /**
  * Storefront-facing endpoint the widget POSTs to after it successfully adds

@@ -601,9 +601,14 @@
       const button = e.currentTarget;
       button.disabled = true;
       const variantId = product.getVariantId ? product.getVariantId() : null;
-      await addToShopifyCart(product, variantId);
-      logCartAdd(product, variantId);
+      const added = await addToShopifyCart(product, variantId);
+      // Log before navigating; keepalive keeps the beacon alive across the redirect.
+      if (added) logCartAdd(product, variantId);
       close();
+      // Reliably surface the added item: go to the cart. Custom "cart:refresh"
+      // events don't refresh most themes' drawers, so without this the shopper
+      // only sees the item after a manual reload.
+      if (added) window.location.href = '/cart';
     };
   }
 
@@ -654,9 +659,10 @@
   }
 
   // ---------- 7. CART ----------
-  // Actually adds the item to the Shopify cart, then opens the cart drawer
-  // (Dawn and most modern themes listen for `cart:refresh`); falls back to
-  // a /cart redirect if nothing handles the event.
+  // Adds the item to the Shopify cart via the AJAX API. Returns true on success
+  // so the caller can log the conversion and navigate to /cart. We deliberately
+  // do NOT rely on custom "cart:refresh" events — most themes (incl. Dawn) don't
+  // listen for them, which left the item invisible until a manual reload.
   async function addToShopifyCart(product, variantId) {
     if (!variantId) {
       // No variant resolved — send the shopper to the product page to pick one
@@ -664,7 +670,7 @@
       window.location.href = product.productHandle
         ? `/products/${encodeURIComponent(product.productHandle)}`
         : '/cart';
-      return;
+      return false;
     }
     try {
       const fd = new FormData();
@@ -676,14 +682,11 @@
         headers: { 'Accept': 'application/json' },
       });
       if (!res.ok) throw new Error(`cart/add ${res.status}`);
-
-      // Notify the theme — Dawn-derived themes listen for one of these.
-      document.dispatchEvent(new CustomEvent('cart:refresh'));
-      document.dispatchEvent(new CustomEvent('cart:updated'));
-      window.dispatchEvent(new CustomEvent('cart:build'));
+      return true;
     } catch (err) {
       console.error('[TryOn] cart/add failed:', err);
       window.location.href = '/cart';
+      return false;
     }
   }
 
@@ -692,7 +695,11 @@
     try {
       fetch(`${API_BASE}/api/cart-add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // No 'Content-Type: application/json' header on purpose: that would make
+        // this a CORS-preflighted request, and the blocked preflight was
+        // silently dropping every cart-add (so analytics showed none). Omitting
+        // it sends text/plain — a CORS "simple" request, like /api/tryon's
+        // FormData POST — and the server still parses the body via request.json().
         keepalive: true,
         body: JSON.stringify({
           shop: shopDomain,
