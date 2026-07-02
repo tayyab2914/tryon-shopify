@@ -6,6 +6,7 @@
     "postinstall": "prisma generate",
     "vercel-build": "prisma generate && remix vite:build",
     "dev": "shopify app dev",
+    "ops": "node --env-file=.env --env-file=.env.ops ./node_modules/vite/bin/vite.js --port 3000",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",

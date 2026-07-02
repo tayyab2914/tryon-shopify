@@ -144,6 +144,42 @@ App Extension dev server.
 | Uninstall | `Shop.uninstalledAt` set; `Session` rows deleted |
 | `shop/redact` (48h post-uninstall) | `Shop` row hard-deleted with cascade |
 
+## Internal ops panel (team-only)
+
+A private, password-gated monitoring dashboard for **us** (not merchants) that
+lists **every store that ever installed** the app and shows — pulled **live from
+Shopify** per store, using each store's stored offline token — who's paying, plan
+and price, real orders/sales, plus the app's own try-on usage analytics. It also
+reconciles the local DB (`Shop.plan`/`chargeId`) to Shopify as it reads.
+
+It lives outside the embedded admin at `/ops`, is run locally, and is never
+deployed.
+
+### Run it
+
+1. Edit `.env.ops` (gitignored, already scaffolded):
+   - Set `OPS_PASSWORD` to a strong password.
+   - Paste your **real** `SHOPIFY_API_SECRET` (Partner Dashboard → your app → API
+     secret) so expiring offline tokens can refresh for reliable live reads.
+   - `OPS_SESSION_SECRET`, `SHOPIFY_API_KEY`, `SHOPIFY_APP_URL` are pre-filled.
+2. Start it:
+
+   ```sh
+   npm run ops
+   ```
+
+3. Open <http://localhost:3000/ops> and log in with `OPS_PASSWORD`.
+
+`npm run ops` loads both `.env` (DB) and `.env.ops` and runs Vite on port 3000. It
+reads the live production database, so real stores appear immediately. The normal
+`npm run dev` (`shopify app dev`) is unaffected.
+
+Files: [app/routes/ops.tsx](app/routes/ops.tsx) (+ `ops._index`, `ops.shops.$shopId`,
+`ops.login`, `ops.logout`), and helpers
+[app/lib/ops.server.ts](app/lib/ops.server.ts),
+[app/lib/ops-shopify.server.ts](app/lib/ops-shopify.server.ts),
+[app/lib/ops-auth.server.ts](app/lib/ops-auth.server.ts).
+
 ## Privacy
 
 Shopper photos are processed in-memory by Gemini and discarded. The only
